@@ -40,6 +40,7 @@ int nMass = 70; //kg
 int nScore = 0;
 int nMaxLives = 3;
 int nLives = 3;
+int gunEquipped = 1;
 
 //floats
 
@@ -70,6 +71,7 @@ float fMomentumArr[3] = {0.0f, 0.0f, 0.0f};
 float fForceVec[3] = {0.0f, 0.0f, 0.0f};
 float fBadPos[nGhostCount*2] = {18.0f, 3.0f, 7.0f, 7.0f, 30.0f, 6.0f, 32.0f, 20.0f};
 int nRand[nGhostCount] = {rand()%4};
+
 
 //functiions
 bool isClose(float px, float py, float bx, float by, float threshold) {
@@ -298,76 +300,74 @@ void rayCaster(wchar_t *frame, wstring Map, float fTick) {
             if (fTestRayY < 0.0f) {
                 fRY = nMapX+fRayMag;
             }
-            else if (fTestRayY > nMapX) {
+            if (fTestRayY > nMapX) {
                 fRY = 0-fRayMag;
             }
-            else if (fTestRayX < 0.0f) {
+            if (fTestRayX < 0.0f) {
                 fRX = nMapY+fRayMag;
             }
-            else if (fTestRayX > nMapY) {
+            if (fTestRayX > nMapY) {
                 fRX = 0-fRayMag;
             }
-            else {
-                //other colisions
-                // ghosts
-                for (int g = 0; g < nGhostCount; g++) { //cycle throuhg all ghosts
-                    if(isClose(fBadPos[(g*2)], fBadPos[(g*2)+1], fTestRayX, fTestRayY, 0.3f)) {
-                        if (!bGhost[g]) {
-                            fGhostMag[g] = fRayMag;
-                            float fX = fBadPos[(2*g)]-fRX;
-                            float fY = fBadPos[(2*g)+1]-fRY;
-                            float fA = atan2f(fY,fX); //angle from cam to ghost
+            //other colisions
+            // ghosts
+            for (int g = 0; g < nGhostCount; g++) { //cycle throuhg all ghosts
+                if(isClose(fBadPos[(g*2)], fBadPos[(g*2)+1], fTestRayX, fTestRayY, 0.3f)) {
+                    if (!bGhost[g]) {
+                        fGhostMag[g] = fRayMag;
+                        float fX = fBadPos[(2*g)]-fRX;
+                        float fY = fBadPos[(2*g)+1]-fRY;
+                        float fA = atan2f(fY,fX); //angle from cam to ghost
 
-                            //normalize
-                                fA = fmod(fA, 2.0f * 3.14159f);
-                                if (fA < 0) {
-                                    fA += 2.0f * 3.14159f;
-                                }
+                        //normalize
+                            fA = fmod(fA, 2.0f * 3.14159f);
+                            if (fA < 0) {
+                                fA += 2.0f * 3.14159f;
+                            }
 
-                            fGhostDiff[g] = fabs(fA-fRayA); //checks how aligned the two angles are
-                            fError =  fGhostDiff[g];
-                        }
-                        bGhost[g] = 1;
+                        fGhostDiff[g] = fabs(fA-fRayA); //checks how aligned the two angles are
+                        fError =  fGhostDiff[g];
                     }
+                    bGhost[g] = 1;
                 }
-                // Coins
-                int nCoinI = (int)fTestRayX * nMapX + (int)fTestRayY;
-                if (map[nCoinI] == '.' && nCoinIndexSet.find(nCoinI) == nCoinIndexSet.end()) {
-                    if(fabs(fTestRayX - ((int)fTestRayX + 0.5f)) < 0.1f && fabs(fTestRayY - ((int)fTestRayY + 0.5f)) < 0.1f) {
-                        nCoinIndexSet.insert(nCoinI);
-                        nCoinIndex.push_back(nCoinI);
-                        fCoinMag.push_back(fRayMag);
-                        bCoin = true;
-                    }
-                }
-                // fruit
-                if (map[nCoinI] == 'B' && fabs(fTestRayX-(float)((int)fTestRayX+0.5)) < 0.2f && fabs(fTestRayY-(float)((int)fTestRayY+0.5)) < 0.2f &&!fFruitMag) {
-                    fFruitMag = fRayMag;
-                }
-                
-                //test for wall colision
-                if(map[(int)fTestRayX * nMapX + (int)fTestRayY] == '#') {
-                    nHit = 1;
-                    //calculate the dot product from the corners of the walls
-                    vector<pair<float, float>> pVec;
-                    for (int tx = 0; tx < 2; tx++)
-							for (int ty = 0; ty < 2; ty++) {
-								float vy = (int)fTestRayY + ty - fRY;
-								float vx = (int)fTestRayX + tx - fRX;
-								float fMag = sqrt(vx*vx + vy*vy); 
-								float fDot = (fBaseX * vx / fMag) + (fBaseY * vy / fMag);
-                                pVec.push_back(make_pair(fMag, fDot));
-							}
-                    //no clue how this works had to copy it from the interwebs      
-                    sort(pVec.begin(), pVec.end(), [](const pair<float, float> &left, const pair<float, float> &right) {return left.first < right.first; });
-                    float fBound = 0.008f;
-                    //make the most aligned(closer to 1) into corners
-					if (acos(pVec.at(0).second) < fBound) nCorner = true;
-					if (acos(pVec.at(1).second) < fBound) nCorner = true;
-                }
-
             }
+            // Coins
+            int nCoinI = (int)fTestRayX * nMapX + (int)fTestRayY;
+            if (map[nCoinI] == '.' && nCoinIndexSet.find(nCoinI) == nCoinIndexSet.end()) {
+                if(fabs(fTestRayX - ((int)fTestRayX + 0.5f)) < 0.1f && fabs(fTestRayY - ((int)fTestRayY + 0.5f)) < 0.1f) {
+                    nCoinIndexSet.insert(nCoinI);
+                    nCoinIndex.push_back(nCoinI);
+                    fCoinMag.push_back(fRayMag);
+                    bCoin = true;
+                }
+            }
+            // fruit
+            if (map[nCoinI] == 'B' && fabs(fTestRayX-(float)((int)fTestRayX+0.5)) < 0.2f && fabs(fTestRayY-(float)((int)fTestRayY+0.5)) < 0.2f &&!fFruitMag) {
+                fFruitMag = fRayMag;
+            }
+            
+            //test for wall colision
+            if(map[(int)fTestRayX * nMapX + (int)fTestRayY] == '#') {
+                nHit = 1;
+                //calculate the dot product from the corners of the walls
+                vector<pair<float, float>> pVec;
+                for (int tx = 0; tx < 2; tx++)
+                        for (int ty = 0; ty < 2; ty++) {
+                            float vy = (int)fTestRayY + ty - fRY;
+                            float vx = (int)fTestRayX + tx - fRX;
+                            float fMag = sqrt(vx*vx + vy*vy); 
+                            float fDot = (fBaseX * vx / fMag) + (fBaseY * vy / fMag);
+                            pVec.push_back(make_pair(fMag, fDot));
+                        }
+                //no clue how this works had to copy it from the interwebs      
+                sort(pVec.begin(), pVec.end(), [](const pair<float, float> &left, const pair<float, float> &right) {return left.first < right.first; });
+                float fBound = 0.008f;
+                //make the most aligned(closer to 1) into corners
+                if (acos(pVec.at(0).second) < fBound) nCorner = true;
+                if (acos(pVec.at(1).second) < fBound) nCorner = true;
+            }       
         }
+
         fRayMag *= (cosf(fRayA-fPA)); //correct fisheye
 
         //Calculate the top and bottom of objects
@@ -395,8 +395,8 @@ void rayCaster(wchar_t *frame, wstring Map, float fTick) {
         }
 
         //fruit
-        int nFTop = (25.0f/fFruitMag)+ (float)(nScreenY/2.0f) - nScreenY / ((float)fFruitMag); //top of wall
-        int nFBottom = nScreenY - nFTop - (30.0f/fFruitMag); //bottom of wall
+        int nFTop = (40.0f/fFruitMag)+ (float)(nScreenY/1.9f) - nScreenY / ((float)fFruitMag); //top of wall
+        int nFBottom = nScreenY - nFTop;// - (10.0f/fFruitMag); //bottom of wall
 
         
 
@@ -466,6 +466,11 @@ void rayCaster(wchar_t *frame, wstring Map, float fTick) {
                 }
             }
 
+            //make all the fruits
+            if (j > nFTop && j <= nFBottom) {
+                frame[j*(nScreenX) + i] = nShadeF;
+            }
+
             //make all ghosts
             for (int g = 0; g < nGhostCount; g++) {
                 if (j > nBadTop[g] && j <= nBadBottom[g] && bGhost[g]) {
@@ -479,10 +484,7 @@ void rayCaster(wchar_t *frame, wstring Map, float fTick) {
                     }
                 }
             }
-            if (j > nFTop && j <= nFBottom) {
-                frame[j*(nScreenX) + i] = nShadeF;
-            }
-
+            
         }
     }
 }
@@ -661,6 +663,49 @@ wstring makeHeart() {
     return heart;
 }
 
+void rayGun(float fTick, wstring& Map) {
+    if (gunEquipped && ((GetAsyncKeyState(VK_UP) & 0x8000) || (GetAsyncKeyState(VK_DOWN) & 0x8000))) {
+        const wchar_t* map = Map.c_str();
+        float fRayMag = 0.0f;
+        float fRA = fPA;
+        float fBX = cosf(fRA);
+        float fBY = sinf(fRA);
+        float fRX = fPX;
+        float fRY = fPY;
+        bool bEnd = 0;
+        while (fRayMag < 10.0f & !bEnd) {
+            fRayMag += fStep;
+            float fPosX = (fRX + (fBX * fRayMag));
+            float fPosY = (fRY + (fBY * fRayMag));
+
+            if (fPosY< 0.0f) {
+                fRY = nMapX+fRayMag;
+            }
+            if (fPosY > nMapX) {
+                fRY = 0-fRayMag;
+            }
+            if (fPosX< 0.0f) {
+                fRX = nMapY+fRayMag;
+            }
+            if (fPosX > nMapY) {
+                fRX = 0-fRayMag;
+            }
+            if(map[(int)fPosX * nMapX + (int)fPosY] == '#' && (GetAsyncKeyState(VK_UP) & 0x8000)) {
+                Map[(int)fPosX * nMapX + (int)fPosY] = ' ';
+                bEnd = 1;
+            }
+            if((map[(int)fPosX * nMapX + (int)fPosY] == ' ' || map[(int)fPosX * nMapX + (int)fPosY] == '.') && (GetAsyncKeyState(VK_DOWN) & 0x8000) && fRayMag > 3.0f)  {
+                Map[(int)fPosX * nMapX + (int)fPosY] = '#';
+                bEnd = 1;
+            }
+
+
+                
+        }
+
+    }
+}
+
 int main() {
     // Create Frame  // goofy windows stuff
 	wchar_t *frame = new wchar_t[nScreenX*nScreenY];
@@ -716,7 +761,7 @@ int main() {
             ghostMovement(fTick, g, 1.6f, map); //1.7f is the base ghost speed
             // end game if ghost colide
             
-            if(isClose(fBadPos[(g*2)], fBadPos[(g*2)+1], fPX, fPY, 0.2f)) { //death and lives and stuff
+            if(isClose(fBadPos[(g*2)], fBadPos[(g*2)+1], fPX, fPY, 0.3f)) { //death and lives and stuff
                 if (isScared) {
                     nScore += 25;
                     fBadPos[(g*2)] = 17;
@@ -744,6 +789,8 @@ int main() {
             }
             
         }
+        //handle ray gun 
+        rayGun(fTick, map);
 
         //handle 3d projection
         rayCaster(frame, map,fTick);
