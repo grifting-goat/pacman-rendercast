@@ -1,6 +1,7 @@
 //Raycasting pac man style game //thanks to the guy on the internet who taught me how to rayCast
 //WASD to move, arrows L and R to change direction
 //space for ice skateing
+// and up and down to place or remove walls
 //terminal should be at what ever size the nScreen variables are
 
 //required libs
@@ -13,6 +14,8 @@
 #include <chrono>
 #include <thread>
 #include <unordered_set>
+#include <queue>
+#include <map>
 using namespace std;
 
 #include <stdio.h>
@@ -22,15 +25,17 @@ using namespace std;
 bool isRunning = false;
 bool nMap = true;
 bool isScared = false;
+int nGhostState = 0;
 
-//int
+//init
+void ghostMovement(float fTick, int s, float f, wstring map);
 
 //game
-const int nScreenX = 230;
-const int nScreenY = 60;
-int nMapX = 28;
-int nMapY = 36;
-const int nGhostCount = 4;
+const int nScreenX = 160;
+const int nScreenY = 50;
+const int nMapX = 28;
+const int nMapY = 31;
+const int nGhostCount = 1;
 int nHeartX = 26;
 int nHeartY = 9;
 
@@ -51,12 +56,12 @@ float fStep = 0.1f;
 float fFudge = 0.0f;
 float fError = 0.0f;
 float fGhostRange = 12.0f;
-float fGhostFudge = 0.2f;
+float fGhostFudge = 0.01f;
 float nTimer = 0;
 
 //Player
-float fPX = 2.0f;
-float fPY = 2.0f;
+float fPX = 1.0f;
+float fPY = 1.0f;
 float fPA = 0.0f;
 float fFov = 1.5f;
 float fSense = 2.2f;
@@ -66,20 +71,105 @@ float fForce = 700.0f;
 float fForceBase = 700.0f;
 float fMomentum = 0.0f;
 
-//vectors
+//arr
+int offX[8] = {0, 1, 0, -1, 1, 1, -1, -1};
+int offY[8] = {1, 0, -1, 0, 1, -1, 1, -1};
 float fMomentumArr[3] = {0.0f, 0.0f, 0.0f};
 float fForceVec[3] = {0.0f, 0.0f, 0.0f};
-float fBadPos[nGhostCount*2] = {18.0f, 3.0f, 7.0f, 7.0f, 30.0f, 6.0f, 32.0f, 20.0f};
-int nRand[nGhostCount] = {rand()%4};
+//float fBadPos[nGhostCount*2] = {25.0f, 3.0f, 7.0f, 7.0f, 25.0f, 6.0f, 25.0f, 20.0f};
+float fBadPos[nGhostCount*2] = {15.0f, 15.0f};
+float fBadAngle[nGhostCount] = { 0 };
+int nRand[nGhostCount] = {0};
+pair<int, int> fBadTarget[nGhostCount] = {{0,0}};
 
+vector<pair<int, int>> test;
 
-//functiions
+//functions
+bool valid(const wchar_t* map, bool visit[nMapY][nMapX], int cellX, int cellY) {
+    if(cellX >= nMapX || cellX < 0) {return false;}
+    if(cellY >= nMapY || cellY < 0) {return false;}
+
+    if(visit[cellY][cellX] || map[(cellY*nMapX) + cellX] == '#') {
+        return false;
+    }
+
+    
+
+    return true;
+}
+
+//breadth first search
+pair<int , int> ghostBFS(wstring mapp, int startX, int startY, int targetX, int targetY) {
+    if (startX == targetX && startY == targetY) {return {-10, -10};}
+    const wchar_t* map = mapp.c_str();
+    queue<pair<int, int>> que;
+    std::map<pair<int, int>, pair<int, int>> parentCell;
+    pair<int, int> index;
+    bool visit[nMapY][nMapX] = {false};
+    bool bFound = false;
+    
+
+    que.push({startY, startX});
+    visit[startY][startX] = true;
+
+    test.clear();
+
+    while(!que.empty()){
+        pair<int, int> cell = que.front();
+        int cellY = cell.first;
+        int cellX = cell.second;
+    
+        que.pop();
+
+        for (int i = 0; i < 8; i++) {
+            int testX = cellX + offX[i];
+            int testY = cellY + offY[i];
+
+            if(testX >= nMapX) {testX -= nMapX;}
+            if(testX < 0) {testX += nMapX;}
+            if(testY >= nMapY) {testY -= nMapY;}
+            if(testY < 0) {testY += nMapY;}
+
+            if(valid(map, visit, testX, testY)) {
+                que.push({testY, testX});
+                visit[testY][testX] = true;
+                parentCell.insert({{testY, testX}, {cellY, cellX}});
+                if(testY == targetY && testX == targetX) {
+                    queue<pair<int, int>> empty;
+                    swap(que, empty);
+                    index = {testY, testX};
+                    bFound = true;
+                }
+            } 
+        }
+    }
+    if (bFound) {
+        bool bTrack = true;
+        pair<int, int> ghostIndex;
+        int runs = 0;
+
+        while(bTrack) {
+            runs++;
+            ghostIndex = index;
+            index = parentCell[index];
+            test.push_back(index);
+            if (index.first == startY && index.second == startX) {
+                if (runs == 1) {return {-10, -10};}
+                bTrack = false;
+            }
+        }
+        return ghostIndex;
+    }
+    return {-9,-9};
+}
+
 bool isClose(float px, float py, float bx, float by, float threshold) {
     float tSquared = threshold * threshold;
     float dx = px - bx;
     float dy = py - by;
     return (dx * dx + dy * dy) < tSquared;
 }
+
 int mapAngleToValue(float angle) { //used to map the ghost angles to NWSE system
     if (angle < 0) angle += 2.0f * 3.14159265f;
     if (angle >= 2.0f * 3.14159265f) angle -= 2.0f * 3.14159265f;
@@ -107,24 +197,20 @@ void hInput(float fTick) { //handles player inputs
     
     //Grabs which keys are pressed and updates momentum accordingly
     if (GetAsyncKeyState((unsigned short)'W') & 0x8000) {
-        for (int i = 0; i < 2; i++) {
-            fMomentumArr[i] += cosf(fPA - ((3.1416/2.0)*i)) * fForce * fForceVec[i] * fTick;
-        }
+        fMomentumArr[0] += cosf(fPA) * fForce * fForceVec[0] * fTick;
+        fMomentumArr[1] += sinf(fPA) * fForce * fForceVec[1] * fTick;
     }
     if (GetAsyncKeyState((unsigned short)'S') & 0x8000) {
-        for (int i = 0; i < 2; i++) {
-            fMomentumArr[i] -= cosf(fPA - ((3.1416/2.0)*i)) * fForce * fForceVec[i] * fTick;
-        }
+        fMomentumArr[0] -= cosf(fPA) * fForce * fForceVec[0] * fTick;
+        fMomentumArr[1] -= sinf(fPA) * fForce * fForceVec[1] * fTick;
     }
     if (GetAsyncKeyState((unsigned short)'A') & 0x8000) {
-        for (int i = 0; i < 2; i++) {
-            fMomentumArr[i] += cosf(fPA - ((3.1416/2.0)*(i+1))) * fForce * fForceVec[i] * fTick;
-        }
+        fMomentumArr[0] += cosf(fPA - (3.1416/2.0)) * fForce * fForceVec[0] * fTick;
+        fMomentumArr[1] += sinf(fPA - (3.1416/2.0)) * fForce * fForceVec[1] * fTick;
     }
     if (GetAsyncKeyState((unsigned short)'D') & 0x8000) {
-        for (int i = 0; i < 2; i++) {
-            fMomentumArr[i] -= cosf(fPA - ((3.1416/2.0)*(i+1))) * fForce * fForceVec[i] * fTick;
-        }
+        fMomentumArr[0] -= cosf(fPA - (3.1416/2.0)) * fForce * fForceVec[0] * fTick;
+        fMomentumArr[1] -= sinf(fPA - (3.1416/2.0)) * fForce * fForceVec[1] * fTick;
     }
 
     //changes the player angle if requested
@@ -171,6 +257,62 @@ void collision(wstring map, float fTick) { //handles player collisions with wall
                 fPY -=fMomentumArr[1] * fTick;
             }
     }
+}
+
+void ghostController(float fTick, int s, float f, wstring map) {
+    float tarX;
+    float tarY;
+    //not finished at all
+    switch (s) {
+        case 0: //red
+            tarX = fPX;
+            tarY = fPY;
+            break;
+        case 1: //pink
+            tarX = fPX;
+            tarY = fPY;
+            int nFudge = mapAngleToValue(fPA);
+            float baseX = cosf(nFudge*(3.1415/2.0));
+            float baseY = sinf(nFudge*(3.1415/2.0));
+            for (int i = 0; i < 4; i++) {
+                if (map.c_str()[(int)tarX * nMapX + (int)tarY] == '#') {
+                    tarX -= baseX;
+                    tarY -= baseY;
+                }
+                else {
+                    tarX += baseX;
+                    tarY += baseY;
+                }
+            }
+
+            break;
+    }
+
+    fBadTarget[s] = ghostBFS(map ,fBadPos[(2*s)+1],fBadPos[(2*s)], tarY, tarX);
+    if (fBadTarget[s].first == -10) { //if it is one tile away from player
+        float fX = fPX-fBadPos[(2*s)];
+        float fY = fPY-fBadPos[(2*s)+1];
+        float fA = atan2f(fY,fX); //angle from ghost to player
+
+        float fGX = cosf(fA); //basis vecs
+        float fGY = sinf(fA);
+
+        fBadPos[(2*s)] += fGX*f*fTick; //update position
+        fBadPos[(2*s)+1] += fGY*f*fTick;
+    }
+    else if (fBadTarget[s].first != -9) { //move than 1 tile and able to reach it
+        if (fBadTarget[s].second == nMapX-1 || fBadTarget[s].first == nMapY-1 || fBadTarget[s].second == 0 || fBadTarget[s].first == 0) {
+ 
+        }
+        else {
+            fBadAngle[s] = atan2f((fBadTarget[s].second + 0.5f) - fBadPos[(2*s)+1], (fBadTarget[s].first + 0.5f) - fBadPos[(2*s)]);
+        }
+        float fBaseX = cosf(fBadAngle[s]); // basis vecs and stuff
+        float fBaseY = sinf(fBadAngle[s]);
+        fBadPos[(2*s)] += fBaseX*f*fTick; //update position
+        fBadPos[(2*s)+1] += fBaseY*f*fTick;
+    }
+    
 }
 
 void ghostMovement(float fTick, int s, float f, wstring map) { //handles ghost movement/AI
@@ -295,20 +437,38 @@ void rayCaster(wchar_t *frame, wstring Map, float fTick) {
             //calculate the x and y position of the test ray
             float fTestRayX = (float)(fRX + (fBaseX * fRayMag));
             float fTestRayY = (float)(fRY + (fBaseY * fRayMag));
+            //wierd error correction thing
+            bool bFix1 = 0;
+            bool bFix2 = 0;
+
 
             //move the camera is outta bounds // for cool portal like effect thing
             if (fTestRayY < 0.0f) {
-                fRY = nMapX+fRayMag;
+                //fRY = nMapX+fRayMag;
+                fRY += nMapX;
             }
-            if (fTestRayY > nMapX) {
-                fRY = 0-fRayMag;
+            if (fTestRayY > (float)nMapX) {
+                //fRY = 0.0f-fRayMag;
+                bFix1 = 1;
+                fRY -= nMapX;
             }
             if (fTestRayX < 0.0f) {
-                fRX = nMapY+fRayMag;
+                //fRX = nMapY+fRayMag;
+                fRX += nMapY;
+                
             }
-            if (fTestRayX > nMapY) {
-                fRX = 0-fRayMag;
+            if (fTestRayX > (float)nMapY) {
+                //fRX = 0.0f-fRayMag;
+                bFix2 = 1;
+                fRX -=nMapY;
             }
+            if (bFix1) {
+                fTestRayY = (float)(fRY + (fBaseY * fRayMag));
+            }
+            if (bFix2) {
+                fTestRayX = (float)(fRX + (fBaseX * fRayMag));
+            }
+
             //other colisions
             // ghosts
             for (int g = 0; g < nGhostCount; g++) { //cycle throuhg all ghosts
@@ -366,8 +526,8 @@ void rayCaster(wchar_t *frame, wstring Map, float fTick) {
                 if (acos(pVec.at(0).second) < fBound) nCorner = true;
                 if (acos(pVec.at(1).second) < fBound) nCorner = true;
             }       
+        
         }
-
         fRayMag *= (cosf(fRayA-fPA)); //correct fisheye
 
         //Calculate the top and bottom of objects
@@ -388,7 +548,7 @@ void rayCaster(wchar_t *frame, wstring Map, float fTick) {
         vector<int> nBBottom(nCoinIndex.size(), 0);
         for (int c = 0; c < nCoinIndex.size(); c++) {
             if (bCoin) {
-                float f = 80.0f;
+                float f = nScreenY*1.3f;
                 nBTop[c] = (f/fCoinMag[c]) + (float)(nScreenY/2.0f) - nScreenY / ((float)fCoinMag[c]);
                 nBBottom[c] = nScreenY - nBTop[c] + 0.6f*(f/fCoinMag[c]) ;
             }
@@ -489,7 +649,7 @@ void rayCaster(wchar_t *frame, wstring Map, float fTick) {
     }
 }
 
-wstring makeMap() { //makes the map, really just wanted to hide this code away
+wstring makeOldMap() { //makes the map, really just wanted to hide this code away
     wstring map;
         map += L"############################";
         map += L"#............##............#";
@@ -538,7 +698,7 @@ void Overlay(wstring map, wstring heart, float fTick, wchar_t* frame) {
         angle = 360 + angle;
     }
     //display info
-    swprintf_s(frame, nScreenX, L"X=%3.2f, Y=%3.2f, Angle=%d, FPS=%3.2f, P=%3.2f PX=%3.2f, PY=%3.2f, Mew=%3.2f, Score= %d" , fPX, fPY, angle, 1.0f/fTick, fMomentum,fMomentumArr[0], fMomentumArr[1], fPMew,nScore);
+    swprintf_s(frame, nScreenX, L"X=%3.2f, Y=%3.2f, Angle=%d, FPS=%3.2f, P=%3.2f PX=%3.2f, PY=%3.2f, Mew=%3.2f, Score= %d, ghoA= %3.2f" , fPX, fPY, angle, 1.0f/fTick, fMomentum,fMomentumArr[0], fMomentumArr[1], fPMew,nScore, fBadAngle[0]*(180/3.1415));
 
     //draw Mini Map
     if (nMap) {
@@ -550,6 +710,9 @@ void Overlay(wstring map, wstring heart, float fTick, wchar_t* frame) {
                 frame[(ny+1)*nScreenX + nx] = map[(ny * nMapX + nx)];
             }
         frame[((int)fPX+1) * nScreenX + (int)fPY] = '@';
+        for(auto coord : test) {
+            frame[(coord.first+1) * nScreenX + coord.second] = '+';
+        }
         for (int k = 0; k < nGhostCount; k++) {
             frame[((int)(fBadPos[(2*k)]+1)) * nScreenX + (int)fBadPos[(2*k)+1]] = '&';
         }
@@ -607,17 +770,17 @@ void mapScrolling() { //handle moving things from one side of map to other
         fPY = nMapX;
     }
     //ghosts
-    for (int g = 0; g < nGhostCount; g++) {
-        if (fBadPos[(2*g)] > (nMapY)) {
+    for (int g = 0; g < nGhostCount; g++) { //works for now
+        if (fBadPos[(2*g)] > nMapY) {
             fBadPos[(2*g)] = 0;
         }
         if (fBadPos[(2*g)+1] > nMapX) {
             fBadPos[(2*g)+1]= 0;
         }
-        if (fBadPos[(2*g)] < 0) {
+        if (fBadPos[(2*g)] < 0.0f) {
             fBadPos[(2*g)] = nMapY;
         }
-        if (fBadPos[(2*g)+1] < 0) {
+        if (fBadPos[(2*g)+1] < 0.0f) {
             fBadPos[(2*g)+1] = nMapX;
         }
     }
@@ -647,6 +810,42 @@ void berryControl(wstring& map, float fTick) {
     }
 }
 
+wstring makeMap() { //makes the map, really just wanted to hide this code away
+    wstring map;
+    map += L"############################";
+    map += L"#............##............#";
+    map += L"#.####.#####.##.#####.####.#";
+    map += L"#B####.#####.##.#####.####B#";
+    map += L"#.####.#####.##.#####.####.#";
+    map += L"#..........................#";
+    map += L"#.####.##.########.##.####.#";
+    map += L"#.####.##.########.##.####.#";
+    map += L"#......##....##....##......#";
+    map += L"######.##### ## #####.######";
+    map += L"     #.##### ## #####.#     ";
+    map += L"     #.##          ##.#     ";
+    map += L"     #.## ###  ### ##.#     ";
+    map += L"######.## #      # ##.######";
+    map += L"      .   #      #   .      ";
+    map += L"######.## #      # ##.######";
+    map += L"     #.## ######## ##.#     ";
+    map += L"     #.##          ##.#     ";
+    map += L"     #.## ######## ##.#     ";
+    map += L"######.## ######## ##.######";
+    map += L"#............##............#";
+    map += L"#.####.#####.##.#####.####.#";
+    map += L"#.####.#####.##.#####.####.#";
+    map += L"#B..##................##..B#";
+    map += L"###.##.##.########.##.##.###";
+    map += L"###.##.##.########.##.##.###";
+    map += L"#......##....##....##......#";
+    map += L"#.##########.##.##########.#";
+    map += L"#.##########.##.##########.#";
+    map += L"#..........................#";
+    map += L"############################";
+
+    return map;
+}
 
 wstring makeHeart() {
     wstring heart;
@@ -673,7 +872,7 @@ void rayGun(float fTick, wstring& Map) {
         float fRX = fPX;
         float fRY = fPY;
         bool bEnd = 0;
-        while (fRayMag < 10.0f & !bEnd) {
+        while (fRayMag < 10.0f && !bEnd) {
             fRayMag += fStep;
             float fPosX = (fRX + (fBX * fRayMag));
             float fPosY = (fRY + (fBY * fRayMag));
@@ -681,13 +880,13 @@ void rayGun(float fTick, wstring& Map) {
             if (fPosY< 0.0f) {
                 fRY = nMapX+fRayMag;
             }
-            if (fPosY > nMapX) {
+            else if (fPosY > nMapX) {
                 fRY = 0-fRayMag;
             }
             if (fPosX< 0.0f) {
                 fRX = nMapY+fRayMag;
             }
-            if (fPosX > nMapY) {
+            else if (fPosX > nMapY) {
                 fRX = 0-fRayMag;
             }
             if(map[(int)fPosX * nMapX + (int)fPosY] == '#' && (GetAsyncKeyState(VK_UP) & 0x8000)) {
@@ -735,7 +934,8 @@ int main() {
         chrono::duration<float> elapsedTime = tp2 - tp1;
         tp1 = tp2;
         float fTick = elapsedTime.count();
-
+        
+       
         //scrolling
         mapScrolling();
         
@@ -751,6 +951,7 @@ int main() {
         //update position
         fPX += fMomentumArr[0]/nMass * fTick;
         fPY += fMomentumArr[1]/nMass * fTick;
+        //pushinP(map);
 
         //jew stuff
         coinControl(map);
@@ -758,7 +959,9 @@ int main() {
 
         //handle ghost
         for (int g = 0; g < nGhostCount; g++) {
-            ghostMovement(fTick, g, 1.6f, map); //1.7f is the base ghost speed
+            
+            ghostController(fTick, g, 1.8f, map); //1.7f is the base ghost speed
+
             // end game if ghost colide
             
             if(isClose(fBadPos[(g*2)], fBadPos[(g*2)+1], fPX, fPY, 0.3f)) { //death and lives and stuff
@@ -789,6 +992,10 @@ int main() {
             }
             
         }
+
+        //unadd player indicator from map
+        //unpushinP(map);
+        
         //handle ray gun 
         rayGun(fTick, map);
 

@@ -1,6 +1,9 @@
 {
     "files.associations": {
         "xlocinfo": "cpp",
-        "xstring": "cpp"
+        "xstring": "cpp",
+        "queue": "cpp",
+        "utility": "cpp",
+        "vector": "cpp"
     }
 }
