@@ -25,7 +25,7 @@ using namespace std;
 bool isRunning = false;
 bool nMap = true;
 bool isScared = false;
-int nGhostState = 0;
+int nGhostState = 1;
 
 //init
 void ghostMovement(float fTick, int s, float f, wstring map);
@@ -56,7 +56,7 @@ float fStep = 0.1f;
 float fFudge = 0.0f;
 float fError = 0.0f;
 float fGhostRange = 12.0f;
-float fGhostFudge = 0.01f;
+float fGhostFudge[4] = {0.01f, 4.0f,0,0};
 float nTimer = 0;
 
 //Player
@@ -77,7 +77,7 @@ int offY[8] = {1, 0, -1, 0, 1, -1, 1, -1};
 float fMomentumArr[3] = {0.0f, 0.0f, 0.0f};
 float fForceVec[3] = {0.0f, 0.0f, 0.0f};
 //float fBadPos[nGhostCount*2] = {25.0f, 3.0f, 7.0f, 7.0f, 25.0f, 6.0f, 25.0f, 20.0f};
-float fBadPos[nGhostCount*2] = {15.0f, 15.0f};
+float fBadPos[nGhostCount*2] = {15.0f};
 float fBadAngle[nGhostCount] = { 0 };
 int nRand[nGhostCount] = {0};
 pair<int, int> fBadTarget[nGhostCount] = {{0,0}};
@@ -265,8 +265,14 @@ void ghostController(float fTick, int s, float f, wstring map) {
     //not finished at all
     switch (s) {
         case 0: //red
-            tarX = fPX;
-            tarY = fPY;
+            if (isScared) {
+                tarX = 15.0f;
+                tarY = 15.0f;
+            }
+            else {
+                tarX = fPX;
+                tarY = fPY;
+            }
             break;
         case 1: //pink
             tarX = fPX;
@@ -337,7 +343,7 @@ void ghostMovement(float fTick, int s, float f, wstring map) { //handles ghost m
                 bHit = true; //out of bounds
         }
         else if((map.c_str()[(int)fTestRayX * nMapX + (int)fTestRayY] == '#')) {bHit = true;} //stop if hits wall
-        else if(isClose(fTestRayX, fTestRayY, fPX, fPY, fGhostFudge)) {bHit = true; bLOS = true;} //stop if hits player, update flag
+        else if(isClose(fTestRayX, fTestRayY, fPX, fPY, fGhostFudge[s])) {bHit = true; bLOS = true;} //stop if hits player, update flag
     }
 
     //determind behavior
@@ -578,13 +584,17 @@ void rayCaster(wchar_t *frame, wstring Map, float fTick) {
 
         //handle ghost shading
         for (int g = 0; g < nGhostCount; g++) {
-           if (bGhost[g]) {
+           if (bGhost[g] && !isScared) {
                 if (fGhostMag[g] <= fDepth / 5.5f)     nShadeB[g] = (rand()%2) ? 8272 : '0'; //cool switching effect
                 else if (fGhostMag[g] < fDepth / 4.5f) nShadeB[g] = (rand()%2) ? '*' : 216;
                 else if(fGhostMag[g] < fDepth / 3.0f)  nShadeB[g] = (rand()%2) ? ' ' : 'O';
                 else if(fGhostMag[g] < fDepth / 2.0f)  nShadeB[g] = (rand()%3) ? ' ' : ':';
                 else if(fGhostMag[g] < fDepth )        nShadeB[g] = (rand()%4) ? ' ' : '|';
-                }
+            }
+            else {
+                nShadeB[g] = (rand()%3) ? ' ' : '0';
+            }
+
         }
 
         for(int c = 0; c < nCoinIndex.size(); c++) {
@@ -711,7 +721,7 @@ void Overlay(wstring map, wstring heart, float fTick, wchar_t* frame) {
             }
         frame[((int)fPX+1) * nScreenX + (int)fPY] = '@';
         for(auto coord : test) {
-            frame[(coord.first+1) * nScreenX + coord.second] = '+';
+            //frame[(coord.first+1) * nScreenX + coord.second] = '+';
         }
         for (int k = 0; k < nGhostCount; k++) {
             frame[((int)(fBadPos[(2*k)]+1)) * nScreenX + (int)fBadPos[(2*k)+1]] = '&';
