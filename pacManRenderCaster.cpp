@@ -37,8 +37,8 @@ int mouseAccumX = 0;  // Accumulate small movements
 void ghostMovement(float fTick, int s, float f, wstring map);
 
 //game
-const int nScreenX = 160;
-const int nScreenY = 50;
+int nScreenX = 160;
+int nScreenY = 50;
 const int nMapX = 28;
 const int nMapY = 31;
 const int nGhostCount = 1;         
@@ -89,6 +89,31 @@ int nRand[nGhostCount] = {0};
 pair<int, int> fBadTarget[nGhostCount] = {{0,0}};
 
 vector<pair<int, int>> test;
+
+bool checkResized(HANDLE hCmd) {
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    GetConsoleScreenBufferInfo(hCmd, &csbi);
+
+    int testWidth = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+    int testHeight = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+
+    if (testWidth != nScreenX || testHeight != nScreenY) {return true;}
+
+    return false;
+}
+
+void resize(HANDLE hCmd, wchar_t* &frame) {
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    if (!GetConsoleScreenBufferInfo(hCmd, &csbi)) {
+        CloseHandle(hCmd);
+        throw std::runtime_error("Failed to get console screen buffer info");
+    }
+
+    delete[] frame;
+    nScreenX = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+    nScreenY = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+    frame = new wchar_t[nScreenX * nScreenY];
+}
 
 //functions
 bool valid(const wchar_t* map, bool visit[nMapY][nMapX], int cellX, int cellY) {
@@ -594,7 +619,7 @@ void rayCaster(wchar_t *frame, wstring Map, float fTick) {
         fRayMag *= (cosf(fRayA-fPA)); //correct fisheye
 
         //Calculate the top and bottom of objects
-        int nTop = (float)(nScreenY/2.0f) - nScreenY / ((float)fRayMag); //top of wall
+        int nTop = (float)(nScreenY/1.8f) - nScreenY / ((float)fRayMag); //top of wall
         int nBottom = nScreenY - nTop; //bottom of wall
 
         int nBadTop[nGhostCount] = {0}; //vectors of the ghosts top and bottom
@@ -765,7 +790,7 @@ void Overlay(wstring map, wstring heart, float fTick, wchar_t* frame) {
         angle = 360 + angle;
     }
     //display info
-    swprintf_s(frame, nScreenX, L"X=%3.2f, Y=%3.2f, Angle=%d, FPS=%3.2f, P=%3.2f PX=%3.2f, PY=%3.2f, Mew=%3.2f, Score= %d, LastMouse=(%d,%d)" , fPX, fPY, angle, 1.0f/fTick, fMomentum,fMomentumArr[0], fMomentumArr[1], fPMew,nScore, lastMousePos.x, lastMousePos.y);
+    swprintf_s(frame, nScreenX, L"X=%3.2f, Y=%3.2f, Angle=%d, FPS=%3.2f, P=%3.2f PX=%3.2f, PY=%3.2f, Mew=%3.2f, Score= %d" , fPX, fPY, angle, 1.0f/fTick, fMomentum,fMomentumArr[0], fMomentumArr[1], fPMew,nScore);
 
     //draw Mini Map
     if (nMap) {
@@ -1004,6 +1029,8 @@ int main() {
 
     //main game loop
     while (isRunning) {
+
+        if (checkResized(hCmd)) {resize(hCmd, frame);}
 
         //handle timing
         tp2 = chrono::system_clock::now();

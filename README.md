@@ -1,13 +1,13 @@
 # Pac-Man RenderCast
 
-> A **3D raycasting Pac-Man** game that brings the classic arcade experience into three dimensions using advanced rendering techniques.
+> A **3D raycasting Pac-Man** game that brings the classic arcade experience into three dimensions using old school rendering techniques.
 
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![Language](https://img.shields.io/badge/language-C%2B%2B-orange)
 
 ## Overview
 
-This project implements a **Pac-Man-style game** using **raycasting** technology to simulate a 3D environment in a console window. The game features realistic physics with momentum-based movement, intelligent ghost AI with pathfinding, and interactive environment manipulation.
+This project implements a **Pac-Man-style game** using **raycasting** technology to simulate a 3D environment in a console window. The game features physics with momentum-based movement, intelligent ghost AI with pathfinding, and interactive environment manipulation.
 
 ## System Requirements
 
@@ -91,7 +91,7 @@ g++ -fdiagnostics-color=always -g pacManRenderCaster.cpp -o pacManRenderCaster.e
 ### Physics
 - **Momentum**: Movement has realistic inertia
 - **Friction**: Adjustable surface friction (ice skating mode reduces it)
-- **Bouncing**: Collision with walls causes realistic bouncing
+- **Bouncing**: Collision with walls causes silly bouncing
 
 ## Customization
 
