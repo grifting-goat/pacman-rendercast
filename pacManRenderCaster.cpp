@@ -258,9 +258,10 @@ void hInput(float fTick) { //handles player inputs
         }
     }
 
-    //handles force scaling
+    //handles force scaling with exponential curve for human-like feel
     for (int i = 0; i < 2; i++) {
-        fForceVec[i] = 1.0f - (abs(fMomentumArr[i])/(fForce));//force factor
+        float speedRatio = abs(fMomentumArr[i]) / (fForce * 0.9f);
+        fForceVec[i] = exp(-speedRatio * speedRatio * 2.0f); //exponential fatigue curve
     }
     
     //Grabs which keys are pressed and updates momentum accordingly
