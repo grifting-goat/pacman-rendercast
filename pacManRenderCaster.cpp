@@ -69,7 +69,7 @@ float nTimer = 0;
 float fPX = 1.0f;
 float fPY = 1.0f;
 float fPA = 0.0f;
-float fFov = 1.7f;
+float fFov = 1.8f;
 float fSense = 2.2f;
 float fPMew = 0.65f;
 float fPMewBase = 0.65f;
@@ -247,16 +247,14 @@ void hInput(float fTick) { //handles player inputs
             
             int screenWidth = GetSystemMetrics(SM_CXSCREEN);
             int screenHeight = GetSystemMetrics(SM_CYSCREEN);
-            
-            if (currentMousePos.x < 50 || currentMousePos.x > screenWidth - 50 ||
-                currentMousePos.y < 50 || currentMousePos.y > screenHeight - 50) {
-                // Reset to screen center
-                int centerX = screenWidth / 2;
-                int centerY = screenHeight / 2;
-                SetCursorPos(centerX, centerY);
-                lastMousePos.x = centerX;
-                lastMousePos.y = centerY;
-            }
+        
+            // Reset to screen center
+            int centerX = screenWidth / 2;
+            int centerY = screenHeight / 2;
+            SetCursorPos(centerX, centerY);
+            lastMousePos.x = centerX;
+            lastMousePos.y = centerY;
+
         }
     }
 
@@ -309,7 +307,7 @@ void hInput(float fTick) { //handles player inputs
         fForce = fForceBase;
     }
 
-    //ice skating with space (keep existing functionality)
+    //ice skating with space
     if (GetAsyncKeyState(VK_SPACE) & 0x8000) {
         fPMew = fPMewBase * 0.05f;
         fForce = 280.0f;
@@ -317,11 +315,11 @@ void hInput(float fTick) { //handles player inputs
 }
 
 void collision(wstring map, float fTick) { //handles player collisions with walls
-    if (map.c_str()[(int)fPX * nMapX + (int)fPY] == '#') {
+    if (map.c_str()[(int)fPY * nMapX + (int)fPX] == '#') {
             //x
             fMomentumArr[0] *= -1; //flip
             fPX +=fMomentumArr[0] * fTick; //move
-            if (map.c_str()[(int)fPX * nMapX + (int)fPY] == '#') { //checks
+            if (map.c_str()[(int)fPY * nMapX + (int)fPX] == '#') { //checks
                 fMomentumArr[0] *= -1; //if bad unflip
                 fPX +=fMomentumArr[0] * fTick; //and unmove
             }
@@ -331,7 +329,7 @@ void collision(wstring map, float fTick) { //handles player collisions with wall
             //y
             fMomentumArr[1] *= -1;
             fPY +=fMomentumArr[1] * fTick;
-            if (map.c_str()[(int)fPX * nMapX + (int)fPY] == '#') {
+            if (map.c_str()[(int)fPY * nMapX + (int)fPX] == '#') {
                 fMomentumArr[1] *= -1;
                 fPY +=fMomentumArr[1] * fTick;
             }
@@ -363,7 +361,7 @@ void ghostController(float fTick, int s, float f, wstring map) {
             float baseX = cosf(nFudge*(3.1415/2.0));
             float baseY = sinf(nFudge*(3.1415/2.0));
             for (int i = 0; i < 4; i++) {
-                if (map.c_str()[(int)tarX * nMapX + (int)tarY] == '#') {
+                if (map.c_str()[(int)tarY * nMapX + (int)tarX] == '#') {
                     tarX -= baseX;
                     tarY -= baseY;
                 }
@@ -376,7 +374,7 @@ void ghostController(float fTick, int s, float f, wstring map) {
             break;
     }
 
-    fBadTarget[s] = ghostBFS(map ,fBadPos[(2*s)+1],fBadPos[(2*s)], tarY, tarX);
+    fBadTarget[s] = ghostBFS(map, fBadPos[(2*s)], fBadPos[(2*s)+1], tarX, tarY);
     if (fBadTarget[s].first == -10) { //if it is one tile away from player
         float fX = fPX-fBadPos[(2*s)];
         float fY = fPY-fBadPos[(2*s)+1];
@@ -389,11 +387,11 @@ void ghostController(float fTick, int s, float f, wstring map) {
         fBadPos[(2*s)+1] += fGY*f*fTick;
     }
     else if (fBadTarget[s].first != -9) { //move than 1 tile and able to reach it
-        if (fBadTarget[s].second == nMapX-1 || fBadTarget[s].first == nMapY-1 || fBadTarget[s].second == 0 || fBadTarget[s].first == 0) {
+        if (fBadTarget[s].first == nMapX-1 || fBadTarget[s].second == nMapY-1 || fBadTarget[s].first == 0 || fBadTarget[s].second == 0) {
  
         }
         else {
-            fBadAngle[s] = atan2f((fBadTarget[s].second + 0.5f) - fBadPos[(2*s)+1], (fBadTarget[s].first + 0.5f) - fBadPos[(2*s)]);
+            fBadAngle[s] = atan2f((fBadTarget[s].first + 0.5f) - fBadPos[(2*s)+1], (fBadTarget[s].second + 0.5f) - fBadPos[(2*s)]);
         }
         float fBaseX = cosf(fBadAngle[s]); // basis vecs and stuff
         float fBaseY = sinf(fBadAngle[s]);
@@ -424,7 +422,7 @@ void ghostMovement(float fTick, int s, float f, wstring map) { //handles ghost m
         if (fTestRayX < 0.0f || fTestRayY < 0.0f || fTestRayX > (float)(nMapY) || fTestRayY > (float)(nMapX)) {
                 bHit = true; //out of bounds
         }
-        else if((map.c_str()[(int)fTestRayX * nMapX + (int)fTestRayY] == '#')) {bHit = true;} //stop if hits wall
+        else if((map.c_str()[(int)fTestRayY * nMapX + (int)fTestRayX] == '#')) {bHit = true;} //stop if hits wall
         else if(isClose(fTestRayX, fTestRayY, fPX, fPY, fGhostFudge[s])) {bHit = true; bLOS = true;} //stop if hits player, update flag
     }
 
@@ -436,7 +434,7 @@ void ghostMovement(float fTick, int s, float f, wstring map) { //handles ghost m
         float fTest = f;
         fBadPos[(2*s)] += fBaseX*fTest*fTick; //move
         fBadPos[(2*s)+1] += fBaseY*fTest*fTick;
-        if(map.c_str()[(int)fBadPos[(2*s)] * nMapX + (int)fBadPos[(2*s+1)]] == '#') { //if hit a wall
+        if(map.c_str()[(int)fBadPos[(2*s)+1] * nMapX + (int)fBadPos[(2*s)]] == '#') { //if hit a wall
             fBadPos[(2*s)] -= fBaseX*fTest*fTick; //go back
             fBadPos[(2*s)+1] -= fBaseY*fTest*fTick;
             fBadPos[(2*s)] -= fBaseX*0.3f; //go back even more
@@ -455,7 +453,7 @@ void ghostMovement(float fTick, int s, float f, wstring map) { //handles ghost m
             fBadPos[(2*s)] += fBaseX*f*fTick; //update positon
             fBadPos[(2*s)+1] += fBaseY*f*fTick;
             float fDist = (pow(fPX - fBadPos[(2*s)],2)+pow(fPY - fBadPos[(2*s)+1],2)); //calculates the distance to player
-            if(map.c_str()[(int)(fBadPos[(2*s)]) * nMapX + (int)(fBadPos[(2*s)+1])] == '#') {fDist = 1000.0f;} //check if is wall //sets distance to something absurdly high
+            if(map.c_str()[(int)(fBadPos[(2*s)+1]) * nMapX + (int)(fBadPos[(2*s)])] == '#') {fDist = 1000.0f;} //check if is wall //sets distance to something absurdly high
             fDistVec.push_back(fDist);//adds it to vector
             fBadPos[(2*s)] -= fBaseX*f*fTick;//unupdate position
             fBadPos[(2*s)+1] -= fBaseY*f*fTick;
@@ -532,23 +530,23 @@ void rayCaster(wchar_t *frame, wstring Map, float fTick) {
 
             //move the camera is outta bounds // for cool portal like effect thing
             if (fTestRayY < 0.0f) {
-                //fRY = nMapX+fRayMag;
-                fRY += nMapX;
+                //fRY = nMapY+fRayMag;
+                fRY += nMapY;
             }
-            if (fTestRayY > (float)nMapX) {
+            if (fTestRayY > (float)nMapY) {
                 //fRY = 0.0f-fRayMag;
                 bFix1 = 1;
-                fRY -= nMapX;
+                fRY -= nMapY;
             }
             if (fTestRayX < 0.0f) {
-                //fRX = nMapY+fRayMag;
-                fRX += nMapY;
+                //fRX = nMapX+fRayMag;
+                fRX += nMapX;
                 
             }
-            if (fTestRayX > (float)nMapY) {
+            if (fTestRayX > (float)nMapX) {
                 //fRX = 0.0f-fRayMag;
                 bFix2 = 1;
-                fRX -=nMapY;
+                fRX -= nMapX;
             }
             if (bFix1) {
                 fTestRayY = (float)(fRY + (fBaseY * fRayMag));
@@ -580,7 +578,7 @@ void rayCaster(wchar_t *frame, wstring Map, float fTick) {
                 }
             }
             // Coins
-            int nCoinI = (int)fTestRayX * nMapX + (int)fTestRayY;
+            int nCoinI = (int)fTestRayY * nMapX + (int)fTestRayX;
             if (map[nCoinI] == '.' && nCoinIndexSet.find(nCoinI) == nCoinIndexSet.end()) {
                 if(fabs(fTestRayX - ((int)fTestRayX + 0.5f)) < 0.1f && fabs(fTestRayY - ((int)fTestRayY + 0.5f)) < 0.1f) {
                     nCoinIndexSet.insert(nCoinI);
@@ -595,7 +593,7 @@ void rayCaster(wchar_t *frame, wstring Map, float fTick) {
             }
             
             //test for wall colision
-            if(map[(int)fTestRayX * nMapX + (int)fTestRayY] == '#') {
+            if(map[(int)fTestRayY * nMapX + (int)fTestRayX] == '#') {
                 nHit = 1;
                 //calculate the dot product from the corners of the walls
                 vector<pair<float, float>> pVec;
@@ -618,8 +616,12 @@ void rayCaster(wchar_t *frame, wstring Map, float fTick) {
         }
         fRayMag *= (cosf(fRayA-fPA)); //correct fisheye
 
+        //Calculate dynamic aspect ratio for consistent rendering
+        float fAspectRatio = (float)nScreenX / (float)nScreenY;
+        float fHorizonLine = nScreenY * (0.5f + (0.05f * fAspectRatio));
+
         //Calculate the top and bottom of objects
-        int nTop = (float)(nScreenY/1.8f) - nScreenY / ((float)fRayMag); //top of wall
+        int nTop = fHorizonLine - nScreenY / ((float)fRayMag); //top of wall
         int nBottom = nScreenY - nTop; //bottom of wall
 
         int nBadTop[nGhostCount] = {0}; //vectors of the ghosts top and bottom
@@ -801,12 +803,12 @@ void Overlay(wstring map, wstring heart, float fTick, wchar_t* frame) {
             {
                 frame[(ny+1)*nScreenX + nx] = map[(ny * nMapX + nx)];
             }
-        frame[((int)fPX+1) * nScreenX + (int)fPY] = '@';
+        frame[((int)fPY+1) * nScreenX + (int)fPX] = '@';
         for(auto coord : test) {
             //frame[(coord.first+1) * nScreenX + coord.second] = '+';
         }
         for (int k = 0; k < nGhostCount; k++) {
-            frame[((int)(fBadPos[(2*k)]+1)) * nScreenX + (int)fBadPos[(2*k)+1]] = '&';
+            frame[((int)(fBadPos[(2*k)+1]+1)) * nScreenX + (int)fBadPos[(2*k)]] = '&';
         }
         double b = 22.5;
         
@@ -822,7 +824,7 @@ void Overlay(wstring map, wstring heart, float fTick, wchar_t* frame) {
         if (angle > 315-b || angle < 45+b) {
             i = 1;
         }
-        frame[((int)fPX+1+i) * (nScreenX) + (int)(fPY)+j] = '*';
+        frame[((int)fPY+1+i) * (nScreenX) + (int)(fPX)+j] = '*';
     }
     for (int h = 0; h < (nLives); h++) {
         for (int nx = 0; nx < nHeartX; nx++)
@@ -849,46 +851,46 @@ void friction(float fTick) { //handle how the players momentum is effected by fr
 
 void mapScrolling() { //handle moving things from one side of map to other 
     //player
-    if (fPX > (nMapY)) {
-    fPX = 0;
+    if (fPX > (nMapX)) {
+        fPX = 0;
     }
-    if (fPY > nMapX) {
+    if (fPY > nMapY) {
         fPY = 0;
     }
     if (fPX < 0) {
-        fPX = nMapY;
+        fPX = nMapX;
     }
     if (fPY < 0) {
-        fPY = nMapX;
+        fPY = nMapY;
     }
     //ghosts
     for (int g = 0; g < nGhostCount; g++) { //works for now
-        if (fBadPos[(2*g)] > nMapY) {
+        if (fBadPos[(2*g)] > nMapX) {
             fBadPos[(2*g)] = 0;
         }
-        if (fBadPos[(2*g)+1] > nMapX) {
+        if (fBadPos[(2*g)+1] > nMapY) {
             fBadPos[(2*g)+1]= 0;
         }
         if (fBadPos[(2*g)] < 0.0f) {
-            fBadPos[(2*g)] = nMapY;
+            fBadPos[(2*g)] = nMapX;
         }
         if (fBadPos[(2*g)+1] < 0.0f) {
-            fBadPos[(2*g)+1] = nMapX;
+            fBadPos[(2*g)+1] = nMapY;
         }
     }
 
 }
 
 void coinControl(wstring& map) {
-    if (map.c_str()[(int)fPX * nMapX + (int)fPY] == '.') {
-        map[(int)fPX * nMapX + (int)fPY] = ' ';
+    if (map.c_str()[(int)fPY * nMapX + (int)fPX] == '.') {
+        map[(int)fPY * nMapX + (int)fPX] = ' ';
         nScore++;
     }
 }
 
 void berryControl(wstring& map, float fTick) {
-    if (map.c_str()[(int)fPX * nMapX + (int)fPY] == 'B') {
-        map[(int)fPX * nMapX + (int)fPY] = ' ';
+    if (map.c_str()[(int)fPY * nMapX + (int)fPX] == 'B') {
+        map[(int)fPY * nMapX + (int)fPX] = ' ';
         isScared = true;
         nTimer = 0;
         nScore += 10;
@@ -973,23 +975,23 @@ void rayGun(float fTick, wstring& Map) {
             float fPosY = (fRY + (fBY * fRayMag));
 
             if (fPosY< 0.0f) {
-                fRY = nMapX+fRayMag;
+                fRY = nMapY+fRayMag;
             }
-            else if (fPosY > nMapX) {
+            else if (fPosY > nMapY) {
                 fRY = 0-fRayMag;
             }
             if (fPosX< 0.0f) {
-                fRX = nMapY+fRayMag;
+                fRX = nMapX+fRayMag;
             }
-            else if (fPosX > nMapY) {
+            else if (fPosX > nMapX) {
                 fRX = 0-fRayMag;
             }
-            if(map[(int)fPosX * nMapX + (int)fPosY] == '#' && shootWall) {
-                Map[(int)fPosX * nMapX + (int)fPosY] = ' ';
+            if(map[(int)fPosY * nMapX + (int)fPosX] == '#' && shootWall) {
+                Map[(int)fPosY * nMapX + (int)fPosX] = ' ';
                 bEnd = 1;
             }
-            if((map[(int)fPosX * nMapX + (int)fPosY] == ' ' || map[(int)fPosX * nMapX + (int)fPosY] == '.') && buildWall && fRayMag > 3.0f)  {
-                Map[(int)fPosX * nMapX + (int)fPosY] = '#';
+            if((map[(int)fPosY * nMapX + (int)fPosX] == ' ' || map[(int)fPosY * nMapX + (int)fPosX] == '.') && buildWall && fRayMag > 3.0f)  {
+                Map[(int)fPosY * nMapX + (int)fPosX] = '#';
                 bEnd = 1;
             }
 
