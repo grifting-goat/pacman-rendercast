@@ -27,6 +27,12 @@ bool nMap = true;
 bool isScared = false;
 int nGhostState = 1;
 
+//mouse control variables
+POINT lastMousePos = {0, 0};
+bool mouseInitialized = false;
+float mouseSensitivity = 0.0009f;
+int mouseAccumX = 0;  // Accumulate small movements
+
 //init
 void ghostMovement(float fTick, int s, float f, wstring map);
 
@@ -35,7 +41,7 @@ const int nScreenX = 160;
 const int nScreenY = 50;
 const int nMapX = 28;
 const int nMapY = 31;
-const int nGhostCount = 1;
+const int nGhostCount = 1;         
 int nHeartX = 26;
 int nHeartY = 9;
 
@@ -63,7 +69,7 @@ float nTimer = 0;
 float fPX = 1.0f;
 float fPY = 1.0f;
 float fPA = 0.0f;
-float fFov = 1.5f;
+float fFov = 1.7f;
 float fSense = 2.2f;
 float fPMew = 0.65f;
 float fPMewBase = 0.65f;
@@ -98,7 +104,7 @@ bool valid(const wchar_t* map, bool visit[nMapY][nMapX], int cellX, int cellY) {
     return true;
 }
 
-//breadth first search
+//breadth first search 
 pair<int , int> ghostBFS(wstring mapp, int startX, int startY, int targetX, int targetY) {
     if (startX == targetX && startY == targetY) {return {-10, -10};}
     const wchar_t* map = mapp.c_str();
@@ -133,6 +139,7 @@ pair<int , int> ghostBFS(wstring mapp, int startX, int startY, int targetX, int 
             if(valid(map, visit, testX, testY)) {
                 que.push({testY, testX});
                 visit[testY][testX] = true;
+                //new position is key and the parent cell is the value
                 parentCell.insert({{testY, testX}, {cellY, cellX}});
                 if(testY == targetY && testX == targetX) {
                     queue<pair<int, int>> empty;
@@ -190,6 +197,44 @@ int mapAngleToValue(float angle) { //used to map the ghost angles to NWSE system
 
 void hInput(float fTick) { //handles player inputs
 
+    // Handle mouse look - completely new approach
+    POINT currentMousePos;
+    if (GetCursorPos(&currentMousePos)) {
+        if (!mouseInitialized) {
+            lastMousePos = currentMousePos;
+            mouseInitialized = true;
+        }
+        else {
+            // Calculate raw mouse movement
+            int deltaX = currentMousePos.x - lastMousePos.x;
+            int deltaY = currentMousePos.y - lastMousePos.y;
+            
+            mouseAccumX += deltaX;
+            
+            // Apply rotation when we have enough accumulated movement
+            if (abs(mouseAccumX) >= 1) {
+                fPA += mouseAccumX * mouseSensitivity;
+                mouseAccumX = 0; // Reset accumulator
+            }
+            
+            // Update last position
+            lastMousePos = currentMousePos;
+            
+            int screenWidth = GetSystemMetrics(SM_CXSCREEN);
+            int screenHeight = GetSystemMetrics(SM_CYSCREEN);
+            
+            if (currentMousePos.x < 50 || currentMousePos.x > screenWidth - 50 ||
+                currentMousePos.y < 50 || currentMousePos.y > screenHeight - 50) {
+                // Reset to screen center
+                int centerX = screenWidth / 2;
+                int centerY = screenHeight / 2;
+                SetCursorPos(centerX, centerY);
+                lastMousePos.x = centerX;
+                lastMousePos.y = centerY;
+            }
+        }
+    }
+
     //handles force scaling
     for (int i = 0; i < 2; i++) {
         fForceVec[i] = 1.0f - (abs(fMomentumArr[i])/(fForce));//force factor
@@ -213,7 +258,7 @@ void hInput(float fTick) { //handles player inputs
         fMomentumArr[1] -= sinf(fPA - (3.1416/2.0)) * fForce * fForceVec[1] * fTick;
     }
 
-    //changes the player angle if requested
+    //changes the player angle if requested (keep as fallback)
     if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
        fPA += fSense * fTick;
 
@@ -223,14 +268,26 @@ void hInput(float fTick) { //handles player inputs
 
     }
 
-    //ice skating??
-    if (GetAsyncKeyState(VK_SPACE) & 0x8000) {
+    //mouse buttons
+    // Left click for ray gun
+    if (GetAsyncKeyState(VK_LBUTTON) & 0x8000) {
+        // Will use existing ray gun functionality
+    }
+    
+    // Right click for ice skating
+    if (GetAsyncKeyState(VK_RBUTTON) & 0x8000) {
         fPMew = fPMewBase * 0.05f;
         fForce = 280.0f;
     }
-    else {
+    else if (!(GetAsyncKeyState(VK_SPACE) & 0x8000)) {
         fPMew = fPMewBase;
         fForce = fForceBase;
+    }
+
+    //ice skating with space (keep existing functionality)
+    if (GetAsyncKeyState(VK_SPACE) & 0x8000) {
+        fPMew = fPMewBase * 0.05f;
+        fForce = 280.0f;
     }
 }
 
@@ -708,7 +765,7 @@ void Overlay(wstring map, wstring heart, float fTick, wchar_t* frame) {
         angle = 360 + angle;
     }
     //display info
-    swprintf_s(frame, nScreenX, L"X=%3.2f, Y=%3.2f, Angle=%d, FPS=%3.2f, P=%3.2f PX=%3.2f, PY=%3.2f, Mew=%3.2f, Score= %d, ghoA= %3.2f" , fPX, fPY, angle, 1.0f/fTick, fMomentum,fMomentumArr[0], fMomentumArr[1], fPMew,nScore, fBadAngle[0]*(180/3.1415));
+    swprintf_s(frame, nScreenX, L"X=%3.2f, Y=%3.2f, Angle=%d, FPS=%3.2f, P=%3.2f PX=%3.2f, PY=%3.2f, Mew=%3.2f, Score= %d, LastMouse=(%d,%d)" , fPX, fPY, angle, 1.0f/fTick, fMomentum,fMomentumArr[0], fMomentumArr[1], fPMew,nScore, lastMousePos.x, lastMousePos.y);
 
     //draw Mini Map
     if (nMap) {
@@ -873,7 +930,10 @@ wstring makeHeart() {
 }
 
 void rayGun(float fTick, wstring& Map) {
-    if (gunEquipped && ((GetAsyncKeyState(VK_UP) & 0x8000) || (GetAsyncKeyState(VK_DOWN) & 0x8000))) {
+    bool shootWall = (GetAsyncKeyState(VK_UP) & 0x8000) || (GetAsyncKeyState(VK_LBUTTON) & 0x8000);
+    bool buildWall = (GetAsyncKeyState(VK_DOWN) & 0x8000);
+    
+    if (gunEquipped && (shootWall || buildWall)) {
         const wchar_t* map = Map.c_str();
         float fRayMag = 0.0f;
         float fRA = fPA;
@@ -899,11 +959,11 @@ void rayGun(float fTick, wstring& Map) {
             else if (fPosX > nMapY) {
                 fRX = 0-fRayMag;
             }
-            if(map[(int)fPosX * nMapX + (int)fPosY] == '#' && (GetAsyncKeyState(VK_UP) & 0x8000)) {
+            if(map[(int)fPosX * nMapX + (int)fPosY] == '#' && shootWall) {
                 Map[(int)fPosX * nMapX + (int)fPosY] = ' ';
                 bEnd = 1;
             }
-            if((map[(int)fPosX * nMapX + (int)fPosY] == ' ' || map[(int)fPosX * nMapX + (int)fPosY] == '.') && (GetAsyncKeyState(VK_DOWN) & 0x8000) && fRayMag > 3.0f)  {
+            if((map[(int)fPosX * nMapX + (int)fPosY] == ' ' || map[(int)fPosX * nMapX + (int)fPosY] == '.') && buildWall && fRayMag > 3.0f)  {
                 Map[(int)fPosX * nMapX + (int)fPosY] = '#';
                 bEnd = 1;
             }
@@ -921,6 +981,12 @@ int main() {
 	HANDLE hCmd = CreateConsoleScreenBuffer(GENERIC_READ | GENERIC_WRITE, 0, NULL, CONSOLE_TEXTMODE_BUFFER, NULL);
 	SetConsoleActiveScreenBuffer(hCmd);
 	DWORD dwBytesWritten = 0;
+
+    // Hide console cursor
+    CONSOLE_CURSOR_INFO cursorInfo;
+    GetConsoleCursorInfo(hCmd, &cursorInfo);
+    cursorInfo.bVisible = FALSE;
+    SetConsoleCursorInfo(hCmd, &cursorInfo);
 
     //Base map
     wstring map = makeMap();
@@ -1007,7 +1073,11 @@ int main() {
         //unpushinP(map);
         
         //handle ray gun 
-        rayGun(fTick, map);
+        if (GetAsyncKeyState(VK_LBUTTON) & 0x8000) {
+            rayGun(fTick, map);
+        } else {
+            rayGun(fTick, map); // Keep existing up/down arrow functionality
+        }
 
         //handle 3d projection
         rayCaster(frame, map,fTick);
@@ -1026,14 +1096,20 @@ int main() {
     frame[nScreenX * nScreenY - 1] = '\0'; //windows really needs the end character
     WriteConsoleOutputCharacterW(hCmd, frame, nScreenX * nScreenY, { 0,0 }, &dwBytesWritten);
 
+    // Restore console cursor
+    CONSOLE_CURSOR_INFO restoreCursor;
+    GetConsoleCursorInfo(hCmd, &restoreCursor);
+    restoreCursor.bVisible = TRUE;
+    SetConsoleCursorInfo(hCmd, &restoreCursor);
+
     std::cout << "gg" << endl;
     std::cout << "Score: " << nScore << endl;
     chrono::duration<float> fTimer = tp2 - tp0;
     double fTime = fTimer.count();
     std::cout << "Time: " << fTime << " seconds" << endl;
-    
-    //sleep so ppl can read the score and stuff
-    //Sleep(10000);
+    std::cout << "type anything to quit" << endl;
+    string thing;
+    cin >> thing;
 
     //return 0 so pc is happy
     return 0;
