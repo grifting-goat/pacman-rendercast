@@ -12,10 +12,10 @@ This project implements a **Pac-Man-style game** using **raycasting** technology
 ## System Requirements
 
 - **OS**: Windows (cmd/PowerShell)
-- **Compiler**: MSVC (cl.exe) or MinGW (g++)
-- **Terminal Size**: 160x50 characters (adjustable in code)
+- **Compiler**: MSVC (cl.exe)
+- **Terminal Size**: 160x50 characters (adjustable)
 
-> **Important**: Make sure your terminal window matches the screen dimensions or the display will appear distorted.
+> **Important**: Make sure your terminal window is fairly large and not a strange shape
 
 ## Controls
 
@@ -46,9 +46,6 @@ This project implements a **Pac-Man-style game** using **raycasting** technology
 ```bash
 # Using MSVC
 cl.exe /Zi /EHsc /nologo /FepackManRenderCaster.exe pacManRenderCaster.cpp
-
-# Using MinGW
-g++ -fdiagnostics-color=always -g pacManRenderCaster.cpp -o pacManRenderCaster.exe
 ```
 
 ## Features
