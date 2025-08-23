@@ -25,6 +25,7 @@ using namespace std;
 bool isRunning = false;
 bool nMap = true;
 bool isScared = false;
+bool bShooter = true;
 int nGhostState = 1;
 
 //mouse control variables
@@ -76,6 +77,8 @@ float fPMewBase = 0.65f;
 float fForce = 700.0f;
 float fForceBase = 700.0f;
 float fMomentum = 0.0f;
+float fLastShotTime = 0.0f;
+float fMuzzleFlash = 0.0f;
 
 //arr
 int offX[8] = {0, 1, 0, -1, 1, 1, -1, -1};
@@ -87,6 +90,11 @@ float fBadPos[nGhostCount*2] = {15.0f};
 float fBadAngle[nGhostCount] = { 0 };
 int nRand[nGhostCount] = {0};
 pair<int, int> fBadTarget[nGhostCount] = {{0,0}};
+
+struct Bullet {
+    float x, y, vx, vy, life;
+};
+vector<Bullet> bullets;
 
 vector<pair<int, int>> test;
 
@@ -293,9 +301,12 @@ void hInput(float fTick) { //handles player inputs
     }
 
     //mouse buttons
-    // Left click for ray gun
-    if (GetAsyncKeyState(VK_LBUTTON) & 0x8000) {
-        // Will use existing ray gun functionality
+    if (bShooter && GetAsyncKeyState(VK_LBUTTON) & 0x8000) {
+        if (fLastShotTime <= 0) {
+            bullets.push_back({fPX, fPY, cosf(fPA) * 35.0f, sinf(fPA) * 35.0f, 2.0f});
+            fLastShotTime = 0.5f;
+            fMuzzleFlash = 0.15f;
+        }
     }
     
     // Right click for ice skating
@@ -498,10 +509,15 @@ void rayCaster(wchar_t *frame, wstring Map, float fTick) {
         float fGhostMag[nGhostCount] = {0.0f};  //depth(ray magnitude) per ghost
 
         //handle coins
-        vector<float> fCoinMag; //depth(ray magnitude) per coin
+        vector<float> fCoinMag;
         unordered_set<int> nCoinIndexSet;
         vector<int> nCoinIndex;
         bool bCoin = false;
+        
+        //handle bullets
+        vector<float> fBulletMag;
+        vector<int> nBulletIndex;
+        bool bBullet = false;
         
         //handle fruit/powerups
         float fFruitMag = 0.0f;
@@ -588,6 +604,16 @@ void rayCaster(wchar_t *frame, wstring Map, float fTick) {
                     bCoin = true;
                 }
             }
+            // Bullets
+            if (bShooter) {
+                for (int b = 0; b < bullets.size(); b++) {
+                    if(isClose(bullets[b].x, bullets[b].y, fTestRayX, fTestRayY, 0.15f)) {
+                        nBulletIndex.push_back(b);
+                        fBulletMag.push_back(fRayMag);
+                        bBullet = true;
+                    }
+                }
+            }
             // fruit
             if (map[nCoinI] == 'B' && fabs(fTestRayX-(float)((int)fTestRayX+0.5)) < 0.2f && fabs(fTestRayY-(float)((int)fTestRayY+0.5)) < 0.2f &&!fFruitMag) {
                 fFruitMag = fRayMag;
@@ -645,6 +671,17 @@ void rayCaster(wchar_t *frame, wstring Map, float fTick) {
             }
         }
 
+        //Bullet vectors
+        vector<int> nBulletTop(nBulletIndex.size(), 0);
+        vector<int> nBulletBottom(nBulletIndex.size(), 0);
+        for (int b = 0; b < nBulletIndex.size(); b++) {
+            if (bBullet) {
+                float f = nScreenY*1.0f;
+                nBulletTop[b] = (f/fBulletMag[b]) + (float)(nScreenY/2.0f) - nScreenY / ((float)fBulletMag[b]);
+                nBulletBottom[b] = nScreenY - nBulletTop[b] + 0.3f*(f/fBulletMag[b]);
+            }
+        }
+
         //fruit
         int nFTop = (40.0f/fFruitMag)+ (float)(nScreenY/1.9f) - nScreenY / ((float)fFruitMag); //top of wall
         int nFBottom = nScreenY - nFTop;// - (10.0f/fFruitMag); //bottom of wall
@@ -652,10 +689,11 @@ void rayCaster(wchar_t *frame, wstring Map, float fTick) {
         
 
         //determine which shade to use based on distance
-        short nShadeB[nGhostCount] = {' '}; // for the ghosts
-        vector<short> nShadeC(nCoinIndex.size(), '$'); // for coins
-        short nShadeF = ' '; // for fruit
-        short nShadeM = ' '; // for the walls
+        short nShadeB[nGhostCount] = {' '};
+        vector<short> nShadeC(nCoinIndex.size(), '$');
+        vector<short> nShadeBullet(nBulletIndex.size(), '*');
+        short nShadeF = ' ';
+        short nShadeM = ' ';
         
 
         //Handle wall shading
@@ -688,6 +726,13 @@ void rayCaster(wchar_t *frame, wstring Map, float fTick) {
             else if(fCoinMag[c] < fDepth / 2.0f)       nShadeC[c] = '*';
             else if(fCoinMag[c] < fDepth)              nShadeC[c] = ' ';
         }
+        
+        for(int b = 0; b < nBulletIndex.size(); b++) {
+            if(fBulletMag[b] < fDepth / 3.0f)          nShadeBullet[b] = '*';
+            else if(fBulletMag[b] < fDepth / 2.0f)     nShadeBullet[b] = '.';
+            else if(fBulletMag[b] < fDepth)            nShadeBullet[b] = ' ';
+        }
+        
         //Berry Shading
         if(fFruitMag < fDepth / 4.0f)                 nShadeF = '@';
             else if(fFruitMag  < fDepth / 3.0f)       nShadeF = 'B';
@@ -718,6 +763,13 @@ void rayCaster(wchar_t *frame, wstring Map, float fTick) {
             for (int c = 0; c < nCoinIndex.size(); c++) {
                 if (j > nBTop[c] && j <= nBBottom[c] && bCoin) {
                     frame[j*(nScreenX) + i] = nShadeC[c];
+                }
+            }
+
+            //make all bullets
+            for (int b = 0; b < nBulletIndex.size(); b++) {
+                if (j > nBulletTop[b] && j <= nBulletBottom[b] && bBullet) {
+                    frame[j*(nScreenX) + i] = nShadeBullet[b];
                 }
             }
 
@@ -811,21 +863,21 @@ void Overlay(wstring map, wstring heart, float fTick, wchar_t* frame) {
         for (int k = 0; k < nGhostCount; k++) {
             frame[((int)(fBadPos[(2*k)+1]+1)) * nScreenX + (int)fBadPos[(2*k)]] = '&';
         }
-        double b = 22.5;
         
-        if (angle >= 45-b && angle <= 135+b) {
-            j = 1;
-        }
-        if (angle >= 225-b && angle <= 315+b) {
-            j = -1;
-        }
-        if (angle >= 135-b && angle <= 225+b) {
-            i = -1;
-        }
-        if (angle > 315-b || angle < 45+b) {
-            i = 1;
-        }
-        frame[((int)fPY+1+i) * (nScreenX) + (int)(fPX)+j] = '*';
+        // Map angle to 8 directions
+        float normalizedAngle = fPA;
+        while (normalizedAngle < 0) normalizedAngle += 2.0f * 3.14159f;
+        while (normalizedAngle >= 2.0f * 3.14159f) normalizedAngle -= 2.0f * 3.14159f;
+        
+        // Convert to 8 directions (0-7) then to i,j offsets
+        int direction = (int)round(normalizedAngle / (3.14159f / 4.0f)) % 8;
+        
+        // Map direction to offsets
+        int dirOffsets[8][2] = {{1,0}, {1,1}, {0,1}, {-1,1}, {-1,0}, {-1,-1}, {0,-1}, {1,-1}};
+        i = dirOffsets[direction][0];
+        j = dirOffsets[direction][1];
+        
+        frame[((int)fPY+1+j) * (nScreenX) + (int)(fPX)+i] = '*';
     }
     for (int h = 0; h < (nLives); h++) {
         for (int nx = 0; nx < nHeartX; nx++)
@@ -835,6 +887,50 @@ void Overlay(wstring map, wstring heart, float fTick, wchar_t* frame) {
                 }
                 
             }
+    }
+
+    // ASCII Art in bottom right
+    wstring art[] = {
+        L"                                               :#%+                                                 ",
+        L"                                             :==*-#~~~~                                             ",
+        L"                                             =**--+=:~~~~~=                                         ",
+        L"                                             =#=:=%@%#+-:..:--::+##+:                               ",
+        L"                                             :+%%%=+@@@@%#*#@@@@@#-==#@@*:                          ",
+        L"                                                :#@@%*:#@@@@#@@@@@@@@%==*%@@@*:                     ",
+        L"                                                 :+%@@@@#----@@#*+@@@@@@@@*+#@@@@%:                 ",
+        L"                                                     -#@@@@+=@@@%@@@*:@@@@*=*@@@@@=                 ",
+        L"                                                        :*#-.+#==%@@@@@@+@@#@@=@@@#:.:=-:           ",
+        L"                                                         =@##*--+=--:%@@#+%#@@-@@%@@@@#=:           ",
+        L"                                                         -@@**#*%@@@@@:@@@---@%@@#.**-**:           ",
+        L"                                                         -@@:=++=-+=*@@@@@%#@@@:@@*=*@#-            ",
+        L"                                                         =@@%+:-:-:+@@+:=@#@@@@@@@@@@@=             ",
+        L"                                                         -%@@@#+=--@@+-.#@.@*.@@%###@@*             ",
+        L"                                                          :*@@*:.*:@@%++@%=%##@@=*=+@@*             ",
+        L"                                                            =@@:-+.*@%###=:+#@@@=@%@@@-             ",
+        L"                                                            :*@@#-:-@%+=-::+@@@@=@@=@@.             ",
+        L"                                                             .+@@@%==%@@@#%#+=#%@%=*@@*.            ",
+        L"                                                               -#@@#=--=+--:*@@@@@#++@@*.           ",
+        L"                                                                 =@@.+%%*++--=--*+.::+@@=           ",
+        L"                                                                 .@@-%%+:::*:*=-+*-:-=%@@           ",
+        L"                                                                 .@@#@@@+:.=*=*#@%@%%#*@@@:         ",
+        L"                                                                 .@@@@-@@-...:@@@@@@#=-=@@@*        ",
+        L"                                                                 .@@#@=*@+...=@#-+=:-*++**@@@-      ",
+        L"                                                                  #@*@@=@*...*@+.::-.=@%=@+@@@+     ",
+        L"                                                                  :@@:@@%*%=.#@-....:-:@@#*@:@@*    ",
+        L"                                                                   -@@++**+*.%%::.....--#@@-@=@@#.  ",
+        L"                                                                    -@@@*+:#@@@@@-:.-:--==@@+%=@@@: "
+    };
+    
+    int artStartY = nScreenY - 28;
+    int artStartX = nScreenX - 90;
+    for (int y = 0; y < 28 && artStartY + y < nScreenY; y++) {
+        for (int x = 0; x < min(100, nScreenX - artStartX) && x < (int)art[y].length(); x++) {
+            if (artStartX + x >= 0 && artStartX + x < nScreenX && artStartY + y >= 0) {
+                if (art[y][x] != L' ') {
+                    frame[(artStartY + y) * nScreenX + (artStartX + x)] = art[y][x];
+                }
+            }
+        }
     }
 
 }
@@ -957,49 +1053,23 @@ wstring makeHeart() {
     return heart;
 }
 
-void rayGun(float fTick, wstring& Map) {
-    bool shootWall = (GetAsyncKeyState(VK_UP) & 0x8000) || (GetAsyncKeyState(VK_LBUTTON) & 0x8000);
-    bool buildWall = (GetAsyncKeyState(VK_DOWN) & 0x8000);
-    
-    if (gunEquipped && (shootWall || buildWall)) {
-        const wchar_t* map = Map.c_str();
-        float fRayMag = 0.0f;
-        float fRA = fPA;
-        float fBX = cosf(fRA);
-        float fBY = sinf(fRA);
-        float fRX = fPX;
-        float fRY = fPY;
-        bool bEnd = 0;
-        while (fRayMag < 10.0f && !bEnd) {
-            fRayMag += fStep;
-            float fPosX = (fRX + (fBX * fRayMag));
-            float fPosY = (fRY + (fBY * fRayMag));
-
-            if (fPosY< 0.0f) {
-                fRY = nMapY+fRayMag;
+void updateBullets(float fTick, wstring& map) {
+    for (int i = bullets.size() - 1; i >= 0; i--) {
+        bullets[i].x += bullets[i].vx * fTick;
+        bullets[i].y += bullets[i].vy * fTick;
+        bullets[i].life -= fTick;
+        
+        if (bullets[i].x < 0) bullets[i].x += nMapX;
+        if (bullets[i].x >= nMapX) bullets[i].x -= nMapX;
+        if (bullets[i].y < 0) bullets[i].y += nMapY;
+        if (bullets[i].y >= nMapY) bullets[i].y -= nMapY;
+        
+        if (map.c_str()[(int)bullets[i].y * nMapX + (int)bullets[i].x] == '#' || bullets[i].life <= 0) {
+            if (map.c_str()[(int)bullets[i].y * nMapX + (int)bullets[i].x] == '#') {
+                map[(int)bullets[i].y * nMapX + (int)bullets[i].x] = ' ';
             }
-            else if (fPosY > nMapY) {
-                fRY = 0-fRayMag;
-            }
-            if (fPosX< 0.0f) {
-                fRX = nMapX+fRayMag;
-            }
-            else if (fPosX > nMapX) {
-                fRX = 0-fRayMag;
-            }
-            if(map[(int)fPosY * nMapX + (int)fPosX] == '#' && shootWall) {
-                Map[(int)fPosY * nMapX + (int)fPosX] = ' ';
-                bEnd = 1;
-            }
-            if((map[(int)fPosY * nMapX + (int)fPosX] == ' ' || map[(int)fPosY * nMapX + (int)fPosX] == '.') && buildWall && fRayMag > 3.0f)  {
-                Map[(int)fPosY * nMapX + (int)fPosX] = '#';
-                bEnd = 1;
-            }
-
-
-                
+            bullets.erase(bullets.begin() + i);
         }
-
     }
 }
 
@@ -1041,7 +1111,13 @@ int main() {
         tp1 = tp2;
         float fTick = elapsedTime.count();
         
+        if (bShooter && fLastShotTime > 0) fLastShotTime -= fTick;
+        if (bShooter && fMuzzleFlash > 0) fMuzzleFlash -= fTick;
+        
        
+        //update bullets
+        if (bShooter) updateBullets(fTick, map);
+        
         //scrolling
         mapScrolling();
         
@@ -1102,11 +1178,25 @@ int main() {
         //unadd player indicator from map
         //unpushinP(map);
         
-        //handle ray gun 
-        if (GetAsyncKeyState(VK_LBUTTON) & 0x8000) {
-            rayGun(fTick, map);
-        } else {
-            rayGun(fTick, map); // Keep existing up/down arrow functionality
+        //handle ray gun (old wall building)
+        if (GetAsyncKeyState(VK_DOWN) & 0x8000) {
+            const wchar_t* mapPtr = map.c_str();
+            float fRayMag = 0.0f;
+            float fBX = cosf(fPA);
+            float fBY = sinf(fPA);
+            while (fRayMag < 10.0f) {
+                fRayMag += fStep;
+                float fPosX = fPX + (fBX * fRayMag);
+                float fPosY = fPY + (fBY * fRayMag);
+                if (fPosX < 0) fPosX += nMapX;
+                if (fPosX >= nMapX) fPosX -= nMapX;
+                if (fPosY < 0) fPosY += nMapY;
+                if (fPosY >= nMapY) fPosY -= nMapY;
+                if ((mapPtr[(int)fPosY * nMapX + (int)fPosX] == ' ' || mapPtr[(int)fPosY * nMapX + (int)fPosX] == '.') && fRayMag > 3.0f) {
+                    map[(int)fPosY * nMapX + (int)fPosX] = '#';
+                    break;
+                }
+            }
         }
 
         //handle 3d projection
@@ -1114,6 +1204,45 @@ int main() {
 
         //Handle Overlay
         Overlay(map, heart, fTick, frame);
+
+        //Screen flash effect (covers everything including overlay)
+        if (bShooter && fMuzzleFlash > 0) {
+            float intensity = fMuzzleFlash / 0.15f; // normalize to 0-1
+            short flashChar;
+            
+            if (intensity > 0.7f) {
+                flashChar = 0x2588; // solid block (brightest, like close walls)
+            } else if (intensity > 0.4f) {
+                flashChar = 0x2593; // dark shade
+            } else if (intensity > 0.2f) {
+                flashChar = 0x2592; // medium shade  
+            } else {
+                flashChar = 0x2591; // light shade
+            }
+            
+            // Circular flash with density fade
+            int centerX = nScreenX / 2;
+            int centerY = nScreenY / 2;
+            float maxRadius = min(nScreenX, nScreenY) * 0.45f;
+            
+            for (int y = 0; y < nScreenY; y++) {
+                for (int x = 0; x < nScreenX; x++) {
+                    float dx = x - centerX;
+                    float dy = y - centerY;
+                    float distance = sqrt(dx * dx + dy * dy);
+                    
+                    if (distance <= maxRadius) {
+                        float fadeIntensity = (1.0f - (distance / maxRadius)) * intensity;
+                        int probability = (int)(fadeIntensity * 95);
+                        
+                        int i = y * nScreenX + x;
+                        if (i < nScreenX * nScreenY && frame[i] != '\0' && (rand() % 100) < probability) {
+                            frame[i] = flashChar;
+                        }
+                    }
+                }
+            }
+        }
 
         // Display Frame
         frame[nScreenX * nScreenY - 1] = '\0'; //windows really needs the end character
